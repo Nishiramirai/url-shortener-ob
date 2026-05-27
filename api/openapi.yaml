@@ -1,0 +1,159 @@
+openapi: 3.0.3
+info:
+  title: URL Shortener API
+  description: |
+    Сервис для сокращения ссылок
+    
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+paths:
+  /:
+    post:
+      summary: Создать сокращенный токен
+      description: Принимает оригинальный URL, генерирует уникальный 10-значный токен и сохраняет его в выбранное хранилище. Если URL уже был сокращен ранее, возвращает статус 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShortenRequest'
+      responses:
+        '201':
+          description: Токен успешно создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortenResponse'
+        '400':
+          description: Ошибка валидации запроса
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                MalformedJSON:
+                  summary: Синтаксическая ошибка в JSON
+                  value:
+                    error: "malformed JSON body or missing required fields"
+                InvalidURL:
+                  summary: Неверный формат URL-адреса
+                  value:
+                    error: "invalid url format, must be a valid absolute URI (e.g. https://google.com)"
+        '409':
+          description: Конфликт (URL уже сокращен)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                AlreadyExists:
+                  summary: Ссылка уже существует
+                  value:
+                    error: "this URL has already been shortened"
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InternalError:
+                  summary: Ошибка сервера
+                  value:
+                    error: "internal server error"
+
+  /{short}:
+    get:
+      summary: Получить оригинальный URL
+      description: Принимает 10-символьный токен и возвращает оригинальный длинный URL для последующей обработки (редиректа или отображения).
+      parameters:
+        - name: short
+          in: path
+          required: true
+          description: Уникальный 10-символьный ключ (разрешены буквы, цифры и нижнее подчеркивание)
+          schema:
+            type: string
+            minLength: 10
+            maxLength: 10
+            pattern: '^[a-zA-Z0-9_]{10}$'
+          example: "X_9b2DfR4e"
+      responses:
+        '200':
+          description: Оригинальный URL успешно найден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolveResponse'
+        '400':
+          description: Неверный формат токена в пути URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InvalidLength:
+                  summary: Длина токена не равна 10 символам
+                  value:
+                    error: "invalid token format, length must be exactly 10 characters"
+        '404':
+          description: Токен не найден в системе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                TokenNotFound:
+                  summary: Токен отсутствует в БД
+                  value:
+                    error: "shortened token not found"
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ShortenRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Оригинальный длинный URL, который нужно сократить
+          example: "https://github.com/gin-gonic/gin"
+
+    ShortenResponse:
+      type: object
+      properties:
+        result:
+          type: string
+          minLength: 10
+          maxLength: 10
+          pattern: '^[a-zA-Z0-9_]{10}$'
+          description: Сгенерированный уникальный 10-значный токен
+          example: "X_9b2DfR4e"
+
+    ResolveResponse:
+      type: object
+      properties:
+        original_url:
+          type: string
+          format: uri
+          description: Оригинальный URL, соответствующий токену
+          example: "https://github.com/gin-gonic/gin"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Текстовое описание произошедшей ошибки
+          example: "invalid request body"
