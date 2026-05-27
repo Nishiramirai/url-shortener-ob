@@ -12,7 +12,7 @@ import (
 	"url-shortener-ob/internal/config"
 	"url-shortener-ob/internal/handler"
 	"url-shortener-ob/internal/service"
-	"url-shortener-ob/internal/storage/memory"
+	"url-shortener-ob/internal/repository/memory"
 
 	"github.com/gin-gonic/gin"
 )

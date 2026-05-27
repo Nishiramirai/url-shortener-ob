@@ -28,6 +28,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShortenResponse'
+        '200':
+          description: URL уже был сокращен, возвращен существующий токен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortenResponse'
         '400':
           description: Ошибка валидации запроса
           content:
@@ -43,17 +49,6 @@ paths:
                   summary: Неверный формат URL-адреса
                   value:
                     error: "invalid url format, must be a valid absolute URI (e.g. https://google.com)"
-        '409':
-          description: Конфликт (URL уже сокращен)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                AlreadyExists:
-                  summary: Ссылка уже существует
-                  value:
-                    error: "this URL has already been shortened"
         '500':
           description: Внутренняя ошибка сервера
           content:

@@ -1,14 +1,18 @@
 package handler
 
 import (
+	"context"
+	"errors"
 	"net/http"
+	"url-shortener-ob/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 type URLService interface {
-	ShortenURL() (string, error)
-	GetOriginalURL() (string, error)
+	ShortenURL(ctx context.Context, originalURL string) (service.ShortenResult, error)
+	GetOriginalURL(ctx context.Context, shortURL string) (string, error)
 }
 
 type Handler struct {
@@ -34,27 +38,47 @@ type ShortenResponse struct {
 
 func (h *Handler) Shorten(c *gin.Context) {
 	var req ShortenRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body or invalid URL format"})
+		var errs validator.ValidationErrors
+		if errors.As(err, &errs) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid url format, must be a valid absolute URI"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "malformed JSON body or missing required fields"})
 		return
 	}
 
-	url, _ := h.service.ShortenURL()
-	c.JSON(http.StatusCreated, url)
+	result, err := h.service.ShortenURL(c.Request.Context(), req.URL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	if result.IsNew {
+		c.JSON(http.StatusCreated, ShortenResponse{Result: result.Token})
+	} else {
+		c.JSON(http.StatusOK, ShortenResponse{Result: result.Token})
+	}
 }
 
 func (h *Handler) Resolve(c *gin.Context) {
-	const shortLen = 10
-
 	shortKey := c.Param("short")
-	if len(shortKey) != shortLen {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid key length"})
+
+	if len(shortKey) != 10 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format, length must be exactly 10 characters"})
 		return
 	}
 
-	url, _ := h.service.ShortenURL()
-	c.JSON(http.StatusOK, gin.H{shortKey: url})
-	// c.JSON(http.StatusOK, gin.H{
-	// 	"message": "url",
-	// })
+	originalURL, err := h.service.GetOriginalURL(c.Request.Context(), shortKey)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "shortened token not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"original_url": originalURL})
 }
