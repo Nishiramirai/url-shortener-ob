@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,26 +11,35 @@ import (
 	"time"
 	"url-shortener-ob/internal/config"
 	"url-shortener-ob/internal/handler"
-	"url-shortener-ob/internal/service"
 	"url-shortener-ob/internal/repository/memory"
+	"url-shortener-ob/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	envLocal = "local"
+	envDev   = "dev"
+	envProd  = "prod"
+)
+
 func main() {
 	cfg := config.MustLoad()
-	// TODO: убрать эту хуйню
-	log.Printf("%v\n", cfg)
 
-	// TODO: init logger
+	logger := setupLogger(cfg.Env)
+	slog.SetDefault(logger)
+
+	logger.Info("starting url-shortener", slog.String("env", cfg.Env))
+	logger.Debug("config loaded", slog.Any("config", cfg))
 
 	// TODO: Сделать нормально с выбором хранилища
 	repo := memory.New()
 
-	// TODO: init service
 	urlService := service.New(repo)
 
-	// TODO: init handler
+	if cfg.Env == envProd {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery())
 
@@ -46,11 +55,10 @@ func main() {
 	}
 
 	go func() {
-		// TODO: нормальный логгер
-		log.Printf("HTTP server is running on %s", cfg.HTTPServer.Address)
+		logger.Info("http server is running", slog.String("address", cfg.HTTPServer.Address))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			// TODO: нормальный логгер, фатал хуйня
-			log.Fatalf("Listen and serve error: %v", err)
+			logger.Error("listen and serve error", slog.Any("err", err))
+			os.Exit(1)
 		}
 	}()
 
@@ -58,17 +66,32 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	// TODO: нормальный логгер
-	log.Println("Shutting down server gracefully...")
+	logger.Info("shutting down server gracefully...")
 
 	ctxShutdown, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelShutdown()
 
 	if err := srv.Shutdown(ctxShutdown); err != nil {
-		// TODO: нормальный логгер
-		log.Fatalf("Server forced to shutdown: %v", err)
+		logger.Error("Server forced to shutdown", slog.Any("err", err))
+		os.Exit(1)
 	}
 
-	// TODO: нормальный логгер
-	log.Println("Server exited properly")
+	logger.Info("Server exited properly")
+}
+
+func setupLogger(env string) *slog.Logger {
+	var logHandler slog.Handler
+
+	switch env {
+	case envLocal:
+		logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	case envDev:
+		logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	case envProd:
+		logHandler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	default:
+		logHandler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+	}
+
+	return slog.New(logHandler)
 }
