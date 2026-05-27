@@ -72,8 +72,8 @@ func (h *Handler) Resolve(c *gin.Context) {
 
 	originalURL, err := h.service.GetOriginalURL(c.Request.Context(), shortKey)
 	if err != nil {
-		if errors.Is(err, service.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "shortened token not found"})
+		if errors.Is(err, service.ErrURLNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "url not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})

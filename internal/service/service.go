@@ -3,8 +3,16 @@ package service
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"url-shortener-ob/internal/repository"
 )
+
+var ErrURLNotFound = errors.New("shortened url not found")
+
+type Repository interface {
+	GetOrCreate(token, url string) (string, bool, error)
+	GetURL(token string) (string, error)
+}
 
 type ShortenResult struct {
 	Token string
@@ -12,27 +20,41 @@ type ShortenResult struct {
 }
 
 type Service struct {
-	repo repository.Repository
+	repo Repository
 }
 
-var (
-	ErrNotFound = errors.New("not found")
-)
-
-func New(repo repository.Repository) *Service {
+func New(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
 func (s *Service) ShortenURL(ctx context.Context, originalURL string) (ShortenResult, error) {
-	// TODO:
-	// 1. Проверить через s.repo.GetByOriginal, нет ли уже такого URL.
-	// 2. Если есть — вернуть старую короткую ссылку (или ошибку ErrAlreadyExists, смотря как решишь).
-	// 3. Если нет — сгенерировать 10 символов.
-	// 4. Сохранить через s.repo.Save.
-	return ShortenResult{"abcdefg", true}, nil
+	token := generateToken()
+
+	actualToken, isNew, err := s.repo.GetOrCreate(token, originalURL)
+	if err != nil {
+		return ShortenResult{}, err
+	}
+
+	return ShortenResult{actualToken, isNew}, nil
 }
 
-func (s *Service) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
-	// TODO: Вызвать s.repo.GetByShort. Если в базе пусто, вернуть ErrNotFound.
-	return "https://google.com", nil
+func (s *Service) GetOriginalURL(ctx context.Context, token string) (string, error) {
+	url, err := s.repo.GetURL(token)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return "", ErrURLNotFound
+		}
+		return "", err
+	}
+	return url, nil
+}
+
+func generateToken() string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+	b := make([]byte, 10)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+
+	return string(b)
 }

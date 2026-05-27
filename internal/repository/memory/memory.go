@@ -1,8 +1,8 @@
 package memory
 
 import (
-	"errors"
 	"sync"
+	"url-shortener-ob/internal/repository"
 )
 
 type Storage struct {
@@ -11,11 +11,19 @@ type Storage struct {
 	urlToToken map[string]string
 }
 
-var ErrNotFound = errors.New("url not found")
-
 func New() *Storage {
+
+	// TODO: удалить ёто
+	urlMap := make(map[string]string)
+	urlMap["aaaaaaaaaa"] = "https://amazon.com"
+	urlMap["bbbbbbbbbb"] = "https://bbc.com"
+	urlMap["cccccccccc"] = "https://cian.com"
+	urlMap["dddddddddd"] = "https://docs.com"
+	urlMap["eeeeeeeeee"] = "https://ebay.com"
+	//
+
 	return &Storage{
-		tokenToURL: make(map[string]string),
+		tokenToURL: urlMap,
 		urlToToken: make(map[string]string),
 	}
 }
@@ -39,7 +47,7 @@ func (s *Storage) GetURL(token string) (string, error) {
 
 	url, ok := s.tokenToURL[token]
 	if !ok {
-		return "", ErrNotFound
+		return "", repository.ErrNotFound
 	}
 
 	return url, nil
@@ -51,7 +59,7 @@ func (s *Storage) GetToken(url string) (string, error) {
 
 	token, ok := s.urlToToken[url]
 	if !ok {
-		return "", ErrNotFound
+		return "", repository.ErrNotFound
 	}
 
 	return token, nil
