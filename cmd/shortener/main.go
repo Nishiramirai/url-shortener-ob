@@ -11,7 +11,9 @@ import (
 	"time"
 	"url-shortener-ob/internal/config"
 	"url-shortener-ob/internal/handler"
+	"url-shortener-ob/internal/handler/middleware"
 	"url-shortener-ob/internal/repository/memory"
+	"url-shortener-ob/internal/repository/postgres"
 	"url-shortener-ob/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -32,8 +34,20 @@ func main() {
 	logger.Info("starting url-shortener", slog.String("env", cfg.Env))
 	logger.Debug("config loaded", slog.Any("config", cfg))
 
-	// TODO: Сделать нормально с выбором хранилища
-	repo := memory.New()
+	var repo service.Repository
+
+	if cfg.StorageType == "postgres" {
+		db, err := postgres.NewDB(cfg.Postgres.DSN)
+		if err != nil {
+			logger.Error("failed to connect to db", slog.Any("err", err))
+			os.Exit(1)
+		}
+		repo = postgres.New(db)
+		logger.Info("postgres storage started")
+	} else {
+		repo = memory.New()
+		logger.Info("memory storage started")
+	}
 
 	urlService := service.New(repo)
 
@@ -41,9 +55,9 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery())
+	router.Use(middleware.SlogLogger(logger), gin.Recovery())
 
-	h := handler.New(urlService)
+	h := handler.New(urlService, logger)
 	h.RegisterRoutes(router)
 
 	srv := &http.Server{

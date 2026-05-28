@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"url-shortener-ob/internal/service"
 
@@ -17,10 +18,14 @@ type URLService interface {
 
 type Handler struct {
 	service URLService
+	logger  *slog.Logger
 }
 
-func New(service URLService) *Handler {
-	return &Handler{service: service}
+func New(service URLService, logger *slog.Logger) *Handler {
+	return &Handler{
+		service: service,
+		logger:  logger,
+	}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
@@ -51,6 +56,10 @@ func (h *Handler) Shorten(c *gin.Context) {
 
 	result, err := h.service.ShortenURL(c.Request.Context(), req.URL)
 	if err != nil {
+		h.logger.Error("failed to shorten url",
+			slog.Any("err", err),
+			slog.String("requested_url", req.URL),
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -76,6 +85,11 @@ func (h *Handler) Resolve(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "url not found"})
 			return
 		}
+
+		h.logger.Error("failed to resolve url",
+			slog.Any("err", err),
+			slog.String("requested_url", shortKey),
+		)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}

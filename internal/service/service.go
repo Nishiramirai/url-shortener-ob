@@ -2,16 +2,17 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
-	"math/rand"
+	"fmt"
 	"url-shortener-ob/internal/repository"
 )
 
 var ErrURLNotFound = errors.New("shortened url not found")
 
 type Repository interface {
-	GetOrCreate(token, url string) (string, bool, error)
-	GetURL(token string) (string, error)
+	GetOrCreate(ctx context.Context, token, url string) (string, bool, error)
+	GetURL(ctx context.Context, token string) (string, error)
 }
 
 type ShortenResult struct {
@@ -28,18 +29,30 @@ func New(repo Repository) *Service {
 }
 
 func (s *Service) ShortenURL(ctx context.Context, originalURL string) (ShortenResult, error) {
-	token := generateToken()
+	const maxRetries = 5
 
-	actualToken, isNew, err := s.repo.GetOrCreate(token, originalURL)
-	if err != nil {
-		return ShortenResult{}, err
+	for i := 0; i < maxRetries; i++ {
+		token, err := generateToken()
+		if err != nil {
+			return ShortenResult{}, fmt.Errorf("failed to generate token: %w", err)
+		}
+
+		actualToken, isNew, err := s.repo.GetOrCreate(ctx, token, originalURL)
+		if err != nil {
+			if errors.Is(err, repository.ErrTokenExists) {
+				continue
+			}
+			return ShortenResult{}, fmt.Errorf("repository: %v", err)
+		}
+
+		return ShortenResult{actualToken, isNew}, nil
 	}
 
-	return ShortenResult{actualToken, isNew}, nil
+	return ShortenResult{}, errors.New("failed to generate unique token after retries")
 }
 
 func (s *Service) GetOriginalURL(ctx context.Context, token string) (string, error) {
-	url, err := s.repo.GetURL(token)
+	url, err := s.repo.GetURL(ctx, token)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return "", ErrURLNotFound
@@ -49,12 +62,19 @@ func (s *Service) GetOriginalURL(ctx context.Context, token string) (string, err
 	return url, nil
 }
 
-func generateToken() string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-	b := make([]byte, 10)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+func generateToken() (string, error) {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+	const tokenLength = 10
+
+	bytes := make([]byte, tokenLength)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
 	}
 
-	return string(b)
+	lenAlphabet := len(alphabet)
+	for i, b := range bytes {
+		bytes[i] = alphabet[b%byte(lenAlphabet)]
+	}
+
+	return string(bytes), nil
 }

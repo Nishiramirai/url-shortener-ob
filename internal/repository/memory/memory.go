@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"sync"
 	"url-shortener-ob/internal/repository"
 )
@@ -13,35 +14,35 @@ type Storage struct {
 
 func New() *Storage {
 
-	// TODO: удалить ёто
-	urlMap := make(map[string]string)
-	urlMap["aaaaaaaaaa"] = "https://amazon.com"
-	urlMap["bbbbbbbbbb"] = "https://bbc.com"
-	urlMap["cccccccccc"] = "https://cian.com"
-	urlMap["dddddddddd"] = "https://docs.com"
-	urlMap["eeeeeeeeee"] = "https://ebay.com"
-	//
-
 	return &Storage{
-		tokenToURL: urlMap,
+		tokenToURL: make(map[string]string),
 		urlToToken: make(map[string]string),
 	}
 }
 
-func (s *Storage) GetOrCreate(token, url string) (string, bool, error) {
+// Сохраняет ссылку и ссылающийся на нее токен. Если ссылка уже существует, возвращает ее токен,
+// если переданный токен уже существует, возвращает ошибку
+func (s *Storage) GetOrCreate(ctx context.Context, token, url string) (string, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Если переданный url уже есть, возвращается его токен
 	if oldToken, ok := s.urlToToken[url]; ok {
 		return oldToken, false, nil
 	}
+
+	// Проверка на колизию с существующим токеном
+	if _, ok := s.tokenToURL[token]; ok {
+		return "", false, repository.ErrTokenExists
+	}
+
 	s.tokenToURL[token] = url
 	s.urlToToken[url] = token
 
 	return token, true, nil
 }
 
-func (s *Storage) GetURL(token string) (string, error) {
+func (s *Storage) GetURL(ctx context.Context, token string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -53,14 +54,14 @@ func (s *Storage) GetURL(token string) (string, error) {
 	return url, nil
 }
 
-func (s *Storage) GetToken(url string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// func (s *Storage) GetToken(url string) (string, error) {
+// 	s.mu.RLock()
+// 	defer s.mu.RUnlock()
 
-	token, ok := s.urlToToken[url]
-	if !ok {
-		return "", repository.ErrNotFound
-	}
+// 	token, ok := s.urlToToken[url]
+// 	if !ok {
+// 		return "", repository.ErrNotFound
+// 	}
 
-	return token, nil
-}
+// 	return token, nil
+// }
