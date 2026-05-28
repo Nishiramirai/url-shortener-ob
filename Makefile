@@ -2,7 +2,7 @@
 
 # Локальная сборка бинарника
 build:
-	go build -o bin/url-shortener ./cmd/app/main.go
+	go build -o bin/url-shortener ./cmd/shortener/main.go
 
 # Локальный запуск приложения
 run:
@@ -23,6 +23,9 @@ test:
 # Запуск тестов с генерацией отчета о покрытии кода
 test-cover:
 	go test -coverprofile=coverage.out ./... && go tool cover -html=coverage.out
+
+lint:
+	golangci-lint run ./...
 
 # Очистка локальных бинарников
 clean:
