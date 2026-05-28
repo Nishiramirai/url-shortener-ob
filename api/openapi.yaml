@@ -3,7 +3,6 @@ info:
   title: URL Shortener API
   description: |
     Сервис для сокращения ссылок
-    
   version: 1.0.0
 
 servers:
@@ -14,7 +13,10 @@ paths:
   /:
     post:
       summary: Создать сокращенный токен
-      description: Принимает оригинальный URL, генерирует уникальный 10-значный токен и сохраняет его в выбранное хранилище. Если URL уже был сокращен ранее, возвращает статус 409.
+      description: |
+        Принимает оригинальный URL, генерирует уникальный 10-значный токен и сохраняет его в выбранное хранилище. 
+        Если URL новый — возвращает статус 201 Created. 
+        Если URL уже был сокращен ранее — возвращает статус 200 OK с существующим токеном.
       requestBody:
         required: true
         content:
@@ -23,7 +25,7 @@ paths:
               $ref: '#/components/schemas/ShortenRequest'
       responses:
         '201':
-          description: Токен успешно создан
+          description: Токен успешно создан (новый URL)
           content:
             application/json:
               schema:
@@ -48,7 +50,18 @@ paths:
                 InvalidURL:
                   summary: Неверный формат URL-адреса
                   value:
-                    error: "invalid url format, must be a valid absolute URI (e.g. https://google.com)"
+                    error: "invalid url format, must be a valid absolute URI"
+        '507':
+          description: Хранилище переполнено (достигнут лимит capacity в In-Memory)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                StorageFull:
+                  summary: Лимит емкости исчерпан
+                  value:
+                    error: "storage limit reached"
         '500':
           description: Внутренняя ошибка сервера
           content:
@@ -63,8 +76,8 @@ paths:
 
   /{short}:
     get:
-      summary: Получить оригинальный URL
-      description: Принимает 10-символьный токен и возвращает оригинальный длинный URL для последующей обработки (редиректа или отображения).
+      summary: Перенаправление на оригинальный URL
+      description: Принимает 10-символьный токен и выполняет HTTP 307 редирект на оригинальный длинный URL.
       parameters:
         - name: short
           in: path
@@ -77,12 +90,15 @@ paths:
             pattern: '^[a-zA-Z0-9_]{10}$'
           example: "X_9b2DfR4e"
       responses:
-        '200':
-          description: Оригинальный URL успешно найден
-          content:
-            application/json:
+        '307':
+          description: Временный редирект. Оригинальный URL передан в заголовке Location.
+          headers:
+            Location:
+              description: Целевой адрес для перенаправления браузера
               schema:
-                $ref: '#/components/schemas/ResolveResponse'
+                type: string
+                format: uri
+              example: "https://github.com/gin-gonic/gin"
         '400':
           description: Неверный формат токена в пути URL
           content:
@@ -90,10 +106,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
-                InvalidLength:
-                  summary: Длина токена не равна 10 символам
+                InvalidFormat:
+                  summary: Неверный формат или длина токена
                   value:
-                    error: "invalid token format, length must be exactly 10 characters"
+                    error: "invalid token format, must be 10 characters alphanumeric or underscore"
         '404':
           description: Токен не найден в системе
           content:
@@ -102,15 +118,20 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 TokenNotFound:
-                  summary: Токен отсутствует в БД
+                  summary: Токен отсутствует в базе данных
                   value:
-                    error: "shortened token not found"
+                    error: "url not found"
         '500':
           description: Внутренняя ошибка сервера
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                InternalError:
+                  summary: Ошибка сервера
+                  value:
+                    error: "internal server error"
 
 components:
   schemas:
@@ -135,15 +156,6 @@ components:
           pattern: '^[a-zA-Z0-9_]{10}$'
           description: Сгенерированный уникальный 10-значный токен
           example: "X_9b2DfR4e"
-
-    ResolveResponse:
-      type: object
-      properties:
-        original_url:
-          type: string
-          format: uri
-          description: Оригинальный URL, соответствующий токену
-          example: "https://github.com/gin-gonic/gin"
 
     ErrorResponse:
       type: object

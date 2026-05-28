@@ -46,7 +46,7 @@ func main() {
 		repo = postgres.New(db)
 		logger.Info("postgres storage started")
 	} else {
-		repo = memory.New()
+		repo = memory.New(cfg.MemoryStorageLimit)
 		logger.Info("memory storage started")
 	}
 

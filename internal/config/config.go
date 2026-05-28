@@ -10,10 +10,11 @@ import (
 )
 
 type Config struct {
-	Env         string `env:"ENV" env-default:"local"`
-	StorageType string `env:"STORAGE_TYPE" env-required:"true"`
-	HTTPServer  HTTPServerConfig
-	Postgres    PostgresConfig
+	Env                string `env:"ENV" env-default:"local"`
+	StorageType        string `env:"STORAGE_TYPE" env-required:"true"`
+	MemoryStorageLimit int    `env:"MEMORY_STORAGE_LIMIT" env-default:"500000"`
+	HTTPServer         HTTPServerConfig
+	Postgres           PostgresConfig
 }
 
 type HTTPServerConfig struct {

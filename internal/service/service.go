@@ -2,22 +2,14 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"url-shortener-ob/internal/repository"
 )
 
-var ErrURLNotFound = errors.New("shortened url not found")
-
 type Repository interface {
 	GetOrCreate(ctx context.Context, token, url string) (string, bool, error)
 	GetURL(ctx context.Context, token string) (string, error)
-}
-
-type ShortenResult struct {
-	Token string
-	IsNew bool
 }
 
 type Service struct {
@@ -26,6 +18,11 @@ type Service struct {
 
 func New(repo Repository) *Service {
 	return &Service{repo: repo}
+}
+
+type ShortenResult struct {
+	Token string
+	IsNew bool
 }
 
 func (s *Service) ShortenURL(ctx context.Context, originalURL string) (ShortenResult, error) {
@@ -42,13 +39,16 @@ func (s *Service) ShortenURL(ctx context.Context, originalURL string) (ShortenRe
 			if errors.Is(err, repository.ErrTokenExists) {
 				continue
 			}
-			return ShortenResult{}, fmt.Errorf("repository: %v", err)
+			if errors.Is(err, repository.ErrStorageFull) {
+				return ShortenResult{}, ErrStorageFull
+			}
+			return ShortenResult{}, fmt.Errorf("service shorten: %w", err)
 		}
 
 		return ShortenResult{actualToken, isNew}, nil
 	}
 
-	return ShortenResult{}, errors.New("failed to generate unique token after retries")
+	return ShortenResult{}, ErrMaxRetriesReached
 }
 
 func (s *Service) GetOriginalURL(ctx context.Context, token string) (string, error) {
@@ -57,24 +57,7 @@ func (s *Service) GetOriginalURL(ctx context.Context, token string) (string, err
 		if errors.Is(err, repository.ErrNotFound) {
 			return "", ErrURLNotFound
 		}
-		return "", err
+		return "", fmt.Errorf("service resolve: %w", err)
 	}
 	return url, nil
-}
-
-func generateToken() (string, error) {
-	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-	const tokenLength = 10
-
-	bytes := make([]byte, tokenLength)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-
-	lenAlphabet := len(alphabet)
-	for i, b := range bytes {
-		bytes[i] = alphabet[b%byte(lenAlphabet)]
-	}
-
-	return string(bytes), nil
 }

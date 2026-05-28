@@ -9,117 +9,145 @@ cp .env.example .env
 make up
 ```
 
-Сервер на `:8080`. По умолчанию работает с in-memory хранилищем.
+Сервер запустится на `:8080`. По умолчанию работает с in-memory хранилищем.
 
 Чтобы изменить хранилище на PostgreSQL, нужно заменить в `.env`:
-```
-STORAGE_TYPE=postgres
-```
 
+```env
+STORAGE_TYPE=postgres
+
+```
 
 ## API
 
 ### `POST /` — сократить ссылку
 
+Принимает оригинальный URL в JSON-теле запроса.
+
 ```json
 // Request
-{"url": "https://example.com/very-long-url"}
+{
+  "url": "https://example.com/very-long-url"
+}
 
-// Response 201 — создан новый токен
-{"result": "aB3_xK9mZq"}
+// Response 201 Created — создан новый токен
+{
+  "result": "aB3_xK9mZq"
+}
 
-// Response 200 — URL уже был сокращён, вернули существующий токен
-{"result": "aB3_xK9mZq"}
+// Response 200 OK — URL уже был сокращён ранее, возвращён существующий токен
+{
+  "result": "aB3_xK9mZq"
+}
+
 ```
 
-### `GET /:short` — получить оригинальный URL
+* **400 Bad Request** — неверный формат URL или синтаксическая ошибка в JSON.
+* **507 Insufficient Storage** — достигнут лимит `MEMORY_STORAGE_LIMIT` (для in-memory).
 
-```json
-// GET /aB3_xK9mZq
-// Response 200
-{"original_url": "https://example.com/very-long-url"}
+### `GET /:short` — редирект на оригинальный URL
 
-// Response 404
-{"error": "url not found"}
+Принимает 10-символьный токен и выполняет временное перенаправление.
+
+```http
+// Запрос: GET /aB3_xK9mZq
+
+// Response 307 Temporary Redirect
+// Заголовок Location содержит оригинальный URL:
+Location: https://example.com/very-long-url
+
 ```
+
+* **400 Bad Request** — длина токена не равна 10 символам или содержит недопустимые символы.
+* **404 Not Found** — токен не найден в системе.
 
 ## Команды Makefile
 
-| Команда       | Что делает                                     |
-|---------------|------------------------------------------------|
-| `make up`     | Собрать и запустить в Docker                   |
-| `make down`   | Остановить Docker и почистить volumes          |
-| `make build`  | Собрать локальный бинарник                     |
-| `make run`    | Запустить локально (без Docker)                |
-| `make test`   | Запустить тесты с race detector                |
-| `make lint`   | Запустить golangci-lint                        |
+| Команда | Что делает |
+| --- | --- |
+| `make up` | Собрать и запустить проект в Docker |
+| `make down` | Остановить Docker и удалить связанные volumes |
+| `make build` | Собрать локальный бинарник |
+| `make run` | Запустить сервис локально (без Docker) |
+| `make test` | Запустить Unit-тесты с race detector |
+| `make line` | Запустить линтер golangci-lint |
 
 ## Переменные окружения
 
-Все настройки задаются через `.env` файл или переменные окружения. Вот полный список:
+Все настройки задаются через `.env` файл или переменные окружения.
 
-```
+```env
 # Окружение: local, dev, prod
 ENV=local
 
 # Выбор хранилища: memory или postgres
-STORAGE_TYPE=postgres
+STORAGE_TYPE=memory
 COMPOSE_PROFILES=${STORAGE_TYPE}
+
+# Лимит для memory хранилища (макс. количество ссылок)
+MEMORY_STORAGE_LIMIT=500000
 
 # Настройки HTTP-сервера
 HTTP_ADDRESS=:8080
 HTTP_TIMEOUT=4s
 HTTP_IDLE_TIMEOUT=60s
 
-# Настройки для подключения к PostgreSQL
+# Настройки для подключения к PostgreSQL (требуются при STORAGE_TYPE=postgres)
 DB_USER=username
 DB_PASSWORD=password
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=shortener_db
+
 ```
 
 ### Описание переменных
 
-| Переменная        | По умолчанию  | Обязательная | Описание                                              |
-|-------------------|--------------|--------------|-------------------------------------------------------|
-| `ENV`             | `local`      | нет          | Режим работы: `local`/`dev` (текстовый лог), `prod` (JSON-лог) |
-| `STORAGE_TYPE`    | —            | **да**       | Хранилище: `memory` (в памяти) или `postgres`          |
-| `HTTP_ADDRESS`    | `:8080`      | нет          | Адрес и порт HTTP-сервера                             |
-| `HTTP_TIMEOUT`    | `4s`         | нет          | Таймаут чтения/записи запроса                         |
-| `HTTP_IDLE_TIMEOUT` | `60s`      | нет          | Таймаут простоя соединения                            |
-| `DB_USER`         | —            | **да**       | Пользователь PostgreSQL (если `STORAGE_TYPE=postgres`) |
-| `DB_PASSWORD`     | —            | **да**       | Пароль PostgreSQL                                     |
-| `DB_HOST`         | `localhost`  | нет          | Хост PostgreSQL                                       |
-| `DB_PORT`         | `5432`       | нет          | Порт PostgreSQL                                       |
-| `DB_NAME`         | —            | **да**       | Имя базы PostgreSQL                                   |
+| Переменная | По умолчанию | Обязательная | Описание |
+| --- | --- | --- | --- |
+| `ENV` | `local` | нет | Режим: `local`/`dev` (обычный лог), `prod` (JSON-лог) |
+| `STORAGE_TYPE` | — | **да** | Хранилище: `memory` или `postgres` |
+| `MEMORY_STORAGE_LIMIT` | `500000` | нет | Лимит емкости In-Memory хранилища |
+| `HTTP_ADDRESS` | `:8080` | нет | Сетевой адрес и порт HTTP-сервера |
+| `HTTP_TIMEOUT` | `4s` | !нет | Таймаут чтения/записи HTTP-запроса |
+| `HTTP_IDLE_TIMEOUT` | `60s` | нет | Таймаут простоя Keep-Alive соединений |
+| `DB_USER` | — | нет* | Пользователь БД (обязательно при `STORAGE_TYPE=postgres`) |
+| `DB_PASSWORD` | — | нет* | Пароль БД (обязательно при `STORAGE_TYPE=postgres`) |
+| `DB_HOST` | `localhost` | нет | Хост PostgreSQL |
+| `DB_PORT` | `5432` | нет | Порт PostgreSQL |
+| `DB_NAME` | — | нет* | Имя базы данных (обязательно при `STORAGE_TYPE=postgres`) |
 
-Самый простой способ начать — скопировать `.env.example`:
+## Архитектура проекта
 
-```bash
-cp .env.example .env
-```
-
-Для in-memory режима достаточно указать только `STORAGE_TYPE=memory`, остальное не важно.
-
-## Архитектура
 
 ```
-cmd/shortener/main.go          — точка входа
+cmd/shortener/main.go          — точка входа, инициализация слоев и DI
 internal/
-├── config/config.go           — конфиг из .env / env vars
-├── handler/handler.go         — HTTP-обработчики
-├── handler/middleware/        — логирование запросов
-├── service/service.go         — бизнес-логика
-└── repository/
-    ├── errors.go              — общие ошибки
-    ├── memory/memory.go       — in-memory хранилище
-    └── postgres/
-        ├── db.go              — подключение и миграции
-        └── postgres.go        — PostgreSQL хранилище
-migrations/                    — SQL-миграции
-api/openapi.yaml               — OpenAPI-спецификация
+├── config/
+│   └── config.go              — парсинг и валидация конфигурации (.env)
+├── handler/
+│   ├── handler.go             — инициализация роутера Gin и регистрация путей
+│   ├── url.go                 — хендлеры создания и обработки токенов (DTO, валидация)
+│   └── middleware/
+│       └── logger.go          — структурированное логирование HTTP-запросов
+├── repository/
+│   ├── errors.go              — общие sentinel-ошибки слоя данных
+│   ├── memory/
+│   │   └── memory.go          — потокобезопасное In-Memory хранилище с контролем емкости
+│   └── postgres/
+│       ├── db.go              — пул соединений с БД и применение миграций
+│       └── postgres.go        — логика работы с PostgreSQL (Get/Create)
+└── service/
+    ├── errors.go              — ошибки бизнес-логики
+    ├── service.go             — оркестратор бизнес-логики сервиса
+    └── token.go               — алгоритм генерации токенов
+migrations/                    — SQL-миграции для PostgreSQL
+api/openapi.yaml               — OpenAPI 3.0 спецификация (Swagger)
+
 ```
 
-Токен генерируется через `crypto/rand`. При совпадении (коллизии) делает до 5 попыток перегенерации. На один оригинальный URL — всегда один токен (дедупликация на уровне хранилища).
+### Ключевые особенности реализации:
+
+* **Генерация токенов:** Токен генерируется криптографически стойким методом через `crypto/rand`. В случае коллизии на уровне хранилища сервис делает до 5 итераций перегенерации (`Retries`), прежде чем вернуть ошибку.
+* **Идемпотентность POST:** На один и тот же оригинальный URL всегда возвращается один и тот же токен. Это гарантирует дедупликацию данных и защиту от бесконечного раздувания хранилища.
 
