@@ -35,9 +35,10 @@ func main() {
 	logger.Debug("config loaded", slog.Any("config", cfg))
 
 	var repo service.Repository
+	dsn := cfg.Postgres.ConnectionURL()
 
 	if cfg.StorageType == "postgres" {
-		db, err := postgres.NewDB(cfg.Postgres.DSN)
+		db, err := postgres.NewDB(dsn)
 		if err != nil {
 			logger.Error("failed to connect to db", slog.Any("err", err))
 			os.Exit(1)

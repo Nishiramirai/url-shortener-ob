@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -22,7 +23,11 @@ type HTTPServerConfig struct {
 }
 
 type PostgresConfig struct {
-	DSN string `env:"DATABASE_DSN"`
+	User     string `env:"DB_USER" env-required:"true"`
+	Password string `env:"DB_PASSWORD" env-required:"true"`
+	Host     string `env:"DB_HOST" env-default:"localhost"`
+	Port     string `env:"DB_PORT" env-default:"5432"`
+	Name     string `env:"DB_NAME" env-required:"true"`
 }
 
 func MustLoad() *Config {
@@ -42,4 +47,9 @@ func MustLoad() *Config {
 	}
 
 	return &cfg
+}
+
+func (p PostgresConfig) ConnectionURL() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		p.User, p.Password, p.Host, p.Port, p.Name)
 }
