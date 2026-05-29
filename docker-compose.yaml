@@ -4,8 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:${APP_PORT:-8080}"
     environment:
+      - APP_PORT=${APP_PORT:-8080}
       - STORAGE_TYPE=${STORAGE_TYPE}
       - DB_HOST=postgres
     env_file:

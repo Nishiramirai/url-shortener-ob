@@ -62,7 +62,7 @@ func main() {
 	h.RegisterRoutes(router)
 
 	srv := &http.Server{
-		Addr:         cfg.HTTPServer.Address,
+		Addr:         ":" + cfg.HTTPServer.Port,
 		Handler:      router,
 		ReadTimeout:  cfg.HTTPServer.Timeout,
 		WriteTimeout: cfg.HTTPServer.Timeout,
@@ -70,7 +70,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Info("http server is running", slog.String("address", cfg.HTTPServer.Address))
+		logger.Info("http server is running", slog.String("port", cfg.HTTPServer.Port))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Error("listen and serve error", slog.Any("err", err))
 			os.Exit(1)

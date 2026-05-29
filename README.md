@@ -88,7 +88,7 @@ COMPOSE_PROFILES=${STORAGE_TYPE}
 MEMORY_STORAGE_LIMIT=500000
 
 # Настройки HTTP-сервера
-HTTP_ADDRESS=:8080
+APP_PORT=8080
 HTTP_TIMEOUT=4s
 HTTP_IDLE_TIMEOUT=60s
 
@@ -108,8 +108,8 @@ DB_NAME=shortener_db
 | `ENV` | `local` | нет | Режим: `local`/`dev` (обычный лог), `prod` (JSON-лог) |
 | `STORAGE_TYPE` | — | **да** | Хранилище: `memory` или `postgres` |
 | `MEMORY_STORAGE_LIMIT` | `500000` | нет | Лимит емкости In-Memory хранилища |
-| `HTTP_ADDRESS` | `:8080` | нет | Сетевой адрес и порт HTTP-сервера |
-| `HTTP_TIMEOUT` | `4s` | !нет | Таймаут чтения/записи HTTP-запроса |
+| `APP_PORT` | `8080` | нет | Порт HTTP-сервера |
+| `HTTP_TIMEOUT` | `4s` | нет | Таймаут чтения/записи HTTP-запроса |
 | `HTTP_IDLE_TIMEOUT` | `60s` | нет | Таймаут простоя Keep-Alive соединений |
 | `DB_USER` | — | нет* | Пользователь БД (обязательно при `STORAGE_TYPE=postgres`) |
 | `DB_PASSWORD` | — | нет* | Пароль БД (обязательно при `STORAGE_TYPE=postgres`) |
@@ -121,28 +121,38 @@ DB_NAME=shortener_db
 
 
 ```
-cmd/shortener/main.go          — точка входа, инициализация слоев и DI
-internal/
-├── config/
-│   └── config.go              — парсинг и валидация конфигурации (.env)
-├── handler/
-│   ├── handler.go             — инициализация роутера Gin и регистрация путей
-│   ├── url.go                 — хендлеры создания и обработки токенов (DTO, валидация)
-│   └── middleware/
-│       └── logger.go          — структурированное логирование HTTP-запросов
-├── repository/
-│   ├── errors.go              — общие sentinel-ошибки слоя данных
-│   ├── memory/
-│   │   └── memory.go          — потокобезопасное In-Memory хранилище с контролем емкости
-│   └── postgres/
-│       ├── db.go              — пул соединений с БД и применение миграций
-│       └── postgres.go        — логика работы с PostgreSQL (Get/Create)
-└── service/
-    ├── errors.go              — ошибки бизнес-логики
-    ├── service.go             — оркестратор бизнес-логики сервиса
-    └── token.go               — алгоритм генерации токенов
-migrations/                    — SQL-миграции для PostgreSQL
-api/openapi.yaml               — OpenAPI 3.0 спецификация (Swagger)
+├── cmd/
+│   └── shortener/
+│       └── main.go             # Точка входа, инициализация конфигов, логгера и DI-контейнера
+├── internal/
+│   ├── config/
+│   │   └── config.go           # Конфигурация приложения (чтение ENV/флагов)
+│   ├── handler/
+│   │   ├── handler.go          # Инициализация базового хендлера и роутинга (Gin)
+│   │   ├── middleware/
+│   │   │   └── logger.go       # Middleware для логирования HTTP-запросов (slog)
+│   │   ├── url.go              # HTTP-хендлеры для POST/GET методов
+│   │   └── url_test.go         # Unit-тесты для HTTP-слоя (httptest + Gin)
+│   ├── service/
+│   │   ├── errors.go           # Бизнес-ошибки сервисного слоя
+│   │   ├── service.go          # Бизнес-логика сокращения ссылок и оркестрация коллизий
+│   │   ├── service_test.go     # Unit-тесты для проверки генерации и логики повторов
+│   │   └── token.go            # Алгоритм генерации уникальных токенов (Rejection Sampling)
+│   └── repository/
+│       ├── errors.go           # Общие ошибки для всех реализаций хранилищ
+│       ├── memory/
+│       │   ├── memory.go       # Самостоятельная потокобезопасность (In-Memory) + OOM защита
+│       │   └── memory_test.go  # Нагрузочные тесты In-Memory хранилища (race detector)
+│       └── postgres/
+│           ├── db.go           # Инициализация и подключение к PostgreSQL
+│           └── postgres.go     # Реализация хранилища для PostgreSQL (pgx/sql)
+├── migrations/                 # SQL-миграции для базы данных (схема таблиц и индексы)
+├── api/
+│   └── openapi.yaml            # Спецификация API сервиса в формате OpenAPI/Swagger
+├── Dockerfile                  # Контейнеризация Go-приложения (Multi-stage build)
+├── docker-compose.yaml         # Инфраструктурный манифест для локального окружения
+├── Makefile                    # Скрипты автоматизации (build, run, test, lint)
+└── README.md                   # Документация проекта
 
 ```
 
