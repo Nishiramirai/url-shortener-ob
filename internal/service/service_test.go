@@ -21,14 +21,13 @@ func (m *mockRepository) GetURL(ctx context.Context, token string) (string, erro
 	return m.GetURLFunc(ctx, token)
 }
 
-// Тестируем создание и сокращение ссылок
 func TestService_ShortenURL(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("success_new_url", func(t *testing.T) {
 		repo := &mockRepository{
 			GetOrCreateFunc: func(ctx context.Context, token, url string) (string, bool, error) {
-				return token, true, nil // Репо вернул тот же токен и IsNew = true
+				return token, true, nil
 			},
 		}
 		s := service.New(repo)
@@ -74,7 +73,7 @@ func TestService_ShortenURL(t *testing.T) {
 			GetOrCreateFunc: func(ctx context.Context, token, url string) (string, bool, error) {
 				calls++
 				if calls == 1 {
-					// Первые раз симулируем коллизию токена в БД
+					// Первый раз симулируем коллизию токена в БД
 					return "", false, repository.ErrTokenExists
 				}
 				return token, true, nil // Со второго раза зашло
@@ -107,7 +106,6 @@ func TestService_ShortenURL(t *testing.T) {
 	})
 }
 
-// Тестируем получение оригинальной ссылки
 func TestService_GetOriginalURL(t *testing.T) {
 	ctx := context.Background()
 
