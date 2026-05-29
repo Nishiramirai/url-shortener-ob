@@ -93,7 +93,13 @@ func isValidToken(token string) bool {
 
 	for i := 0; i < len(token); i++ {
 		b := token[i]
-		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || (b == '_')) {
+
+		switch {
+		case b >= 'a' && b <= 'z':
+		case b >= 'A' && b <= 'Z':
+		case b >= '0' && b <= '9':
+		case b == '_':
+		default:
 			return false
 		}
 	}
